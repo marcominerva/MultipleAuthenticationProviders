@@ -13,6 +13,7 @@ public class MeController : ControllerBase
     {
         var user = new
         {
+            UserName = User.Identity.Name,
             IsLogged = User.Identity.IsAuthenticated
         };
 

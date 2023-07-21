@@ -1,11 +1,14 @@
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Identity.Web;
 using MultipleAuthenticationProviders.Authentication;
+using MultipleAuthenticationProviders.Models;
 using MultipleAuthenticationProviders.Settings;
 using MultipleAuthenticationProviders.Swagger;
 using SimpleAuthentication;
+using SimpleAuthentication.JwtBearer;
 using TinyHelpers.AspNetCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,11 +16,21 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 var azureAdSettings = builder.Services.ConfigureAndGet<AzureAdSettings>(builder.Configuration, "AzureAd");
 
+builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 
-builder.Services.AddMicrosoftIdentityWebApiAuthentication(builder.Configuration);
+builder.Services
+    .AddSimpleAuthentication(builder.Configuration)
+    .AddMicrosoftIdentityWebApi(builder.Configuration);
 
-JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
+builder.Services.AddAuthorization(options =>
+{
+    options.DefaultPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser()
+        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "LocalBearer")
+        .Build();
+});
+
+//JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Add("preferred_username", ClaimTypes.Name);
 
 builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
@@ -55,6 +68,16 @@ app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
+
+app.MapPost("/api/auth/login", (LoginRequest request, IJwtBearerService jwtBearerService, IMemoryCache memoryCache) =>
+{
+    // Checks for login...
+
+    var token = jwtBearerService.CreateToken(request.UserName);
+    memoryCache.Remove(request.UserName);
+
+    return TypedResults.Ok(new LoginResponse(token));
+});
 
 app.MapControllers();
 
