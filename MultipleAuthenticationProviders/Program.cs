@@ -1,8 +1,9 @@
+using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Identity.Web;
+using Microsoft.Net.Http.Headers;
 using MultipleAuthenticationProviders.Authentication;
 using MultipleAuthenticationProviders.Models;
 using MultipleAuthenticationProviders.Settings;
@@ -20,15 +21,38 @@ builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
 
 builder.Services
-    .AddSimpleAuthentication(builder.Configuration)
-    .AddMicrosoftIdentityWebApi(builder.Configuration);
-
-builder.Services.AddAuthorization(options =>
+.AddAuthentication(options =>
 {
-    options.DefaultPolicy = new AuthorizationPolicyBuilder().RequireAuthenticatedUser()
-        .AddAuthenticationSchemes(JwtBearerDefaults.AuthenticationScheme, "LocalBearer")
-        .Build();
-});
+    options.DefaultScheme = "CustomAuth";
+    options.DefaultChallengeScheme = "CustomAuth";
+})
+.AddPolicyScheme("CustomAuth", "CustomAuth", options =>
+{
+    options.ForwardDefaultSelector = context =>
+    {
+        string authorization = context.Request.Headers[HeaderNames.Authorization];
+        if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer "))
+        {
+            var token = authorization["Bearer ".Length..].Trim();
+            var jwtHandler = new JwtSecurityTokenHandler();
+
+            // It's a self contained access token and not encrypted
+            if (jwtHandler.CanReadToken(token))
+            {
+                var issuer = jwtHandler.ReadJwtToken(token).Issuer;
+                if (issuer.StartsWith("https://login.microsoftonline.com/"))
+                {
+                    return JwtBearerDefaults.AuthenticationScheme;
+                }
+            }
+        }
+
+        // We don't know what it is, assume it's a local bearer token
+        return "LocalBearer";
+    };
+})
+.AddSimpleAuthentication(builder.Configuration)
+.AddMicrosoftIdentityWebApi(builder.Configuration);
 
 //JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Add("preferred_username", ClaimTypes.Name);
@@ -53,18 +77,21 @@ builder.Services.AddSwaggerGen(options =>
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseHttpsRedirection();
+
 if (app.Environment.IsDevelopment())
 {
+    app.UseStaticFiles();
+
     app.UseSwagger();
 
     app.UseSwaggerUI(options =>
     {
+        options.InjectStylesheet("/css/swagger.css");
         options.OAuthClientId(azureAdSettings.ClientId);
         options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
     });
 }
-
-app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();
