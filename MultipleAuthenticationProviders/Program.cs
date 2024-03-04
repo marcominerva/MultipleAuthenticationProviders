@@ -71,7 +71,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(options =>
 {
     options.AddOAuth2Authorization(azureAdSettings);
-    options.AddSimpleAuthentication(builder.Configuration, additionalSecurityDefinitionNames: new[] { "OAuth2" });
+    options.AddSimpleAuthentication(builder.Configuration, additionalSecurityDefinitionNames: ["OAuth2"]);
 });
 
 var app = builder.Build();
