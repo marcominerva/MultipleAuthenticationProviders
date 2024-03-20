@@ -13,6 +13,7 @@ using SimpleAuthentication.JwtBearer;
 using TinyHelpers.AspNetCore.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, reloadOnChange: true);
 
 // Add services to the container.
 var azureAdSettings = builder.Services.ConfigureAndGet<AzureAdSettings>(builder.Configuration, "AzureAd");
@@ -23,10 +24,10 @@ builder.Services.AddControllers();
 builder.Services
 .AddAuthentication(options =>
 {
-    options.DefaultScheme = "CustomAuth";
-    options.DefaultChallengeScheme = "CustomAuth";
+    options.DefaultScheme = "Authentication";
+    options.DefaultChallengeScheme = "Authentication";
 })
-.AddPolicyScheme("CustomAuth", "CustomAuth", options =>
+.AddPolicyScheme("Authentication", "Authentication", options =>
 {
     options.ForwardDefaultSelector = context =>
     {
@@ -79,19 +80,15 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseHttpsRedirection();
 
-if (app.Environment.IsDevelopment())
+app.UseStaticFiles();
+
+app.UseSwagger();
+app.UseSwaggerUI(options =>
 {
-    app.UseStaticFiles();
-
-    app.UseSwagger();
-
-    app.UseSwaggerUI(options =>
-    {
-        options.InjectStylesheet("/css/swagger.css");
-        options.OAuthClientId(azureAdSettings.ClientId);
-        options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
-    });
-}
+    options.InjectStylesheet("/css/swagger.css");
+    options.OAuthClientId(azureAdSettings.ClientId);
+    options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
