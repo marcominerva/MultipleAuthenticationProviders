@@ -1,13 +1,12 @@
-using System.IdentityModel.Tokens.Jwt;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Identity.Web;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.Net.Http.Headers;
 using MultipleAuthenticationProviders.Authentication;
 using MultipleAuthenticationProviders.Models;
 using MultipleAuthenticationProviders.Settings;
-using MultipleAuthenticationProviders.Swagger;
 using SimpleAuthentication;
 using SimpleAuthentication.JwtBearer;
 using TinyHelpers.AspNetCore.Extensions;
@@ -35,12 +34,12 @@ builder.Services
         if (!string.IsNullOrEmpty(authorization) && authorization.StartsWith("Bearer "))
         {
             var token = authorization["Bearer ".Length..].Trim();
-            var jwtHandler = new JwtSecurityTokenHandler();
+            var jwtHandler = new JsonWebTokenHandler();
 
             // It's a self contained access token and not encrypted
             if (jwtHandler.CanReadToken(token))
             {
-                var issuer = jwtHandler.ReadJwtToken(token).Issuer;
+                var issuer = jwtHandler.ReadJsonWebToken(token).Issuer;
                 if (issuer.StartsWith("https://login.microsoftonline.com/"))
                 {
                     return JwtBearerDefaults.AuthenticationScheme;
@@ -66,13 +65,15 @@ builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationSch
 
 builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
-builder.Services.AddEndpointsApiExplorer();
-
-builder.Services.AddSwaggerGen(options =>
+builder.Services.AddOpenApi(options =>
 {
-    options.AddOAuth2Authorization(azureAdSettings);
     options.AddSimpleAuthentication(builder.Configuration, additionalSecurityDefinitionNames: ["OAuth2"]);
+    options.AddOAuth2Authentication("OAuth2", new()
+    {
+        AuthorizationUrl = new Uri($"{azureAdSettings.Instance}{azureAdSettings.TenantId}/oauth2/v2.0/authorize"),
+        TokenUrl = new Uri($"{azureAdSettings.Instance}{azureAdSettings.TenantId}/oauth2/v2.0/token"),
+        Scopes = azureAdSettings.Scopes.ToDictionary(scope => $"api://{azureAdSettings.ClientId}/{scope}", scope => $"Access to {scope}")
+    });
 });
 
 var app = builder.Build();
@@ -80,11 +81,10 @@ var app = builder.Build();
 // Configure the HTTP request pipeline.
 app.UseHttpsRedirection();
 
-app.UseStaticFiles();
-
-app.UseSwagger();
+app.MapOpenApi();
 app.UseSwaggerUI(options =>
 {
+    options.SwaggerEndpoint("/openapi/v1.json", builder.Environment.ApplicationName);
     options.OAuthClientId(azureAdSettings.ClientId);
     options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
 });
@@ -100,7 +100,8 @@ app.MapPost("/api/auth/login", async (LoginRequest request, IJwtBearerService jw
     memoryCache.Remove(request.UserName);
 
     return TypedResults.Ok(new LoginResponse(token));
-});
+})
+.ProducesProblem(StatusCodes.Status400BadRequest);
 
 app.MapControllers();
 
