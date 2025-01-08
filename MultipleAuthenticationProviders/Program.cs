@@ -17,8 +17,8 @@ builder.Configuration.AddJsonFile("appsettings.local.json", optional: true, relo
 // Add services to the container.
 var azureAdSettings = builder.Services.ConfigureAndGet<AzureAdSettings>(builder.Configuration, "AzureAd");
 
-builder.Services.AddMemoryCache();
 builder.Services.AddControllers();
+builder.Services.AddMemoryCache();
 
 builder.Services
 .AddAuthentication(options =>
@@ -67,7 +67,7 @@ builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
 builder.Services.AddOpenApi(options =>
 {
-    options.AddSimpleAuthentication(builder.Configuration, additionalSecurityDefinitionNames: ["OAuth2"]);
+    options.AddSimpleAuthentication(builder.Configuration);
     options.AddOAuth2Authentication("OAuth2", new()
     {
         AuthorizationUrl = new Uri($"{azureAdSettings.Instance}{azureAdSettings.TenantId}/oauth2/v2.0/authorize"),
