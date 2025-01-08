@@ -85,7 +85,6 @@ app.UseStaticFiles();
 app.UseSwagger();
 app.UseSwaggerUI(options =>
 {
-    options.InjectStylesheet("/css/swagger.css");
     options.OAuthClientId(azureAdSettings.ClientId);
     options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
 });
@@ -93,11 +92,11 @@ app.UseSwaggerUI(options =>
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapPost("/api/auth/login", (LoginRequest request, IJwtBearerService jwtBearerService, IMemoryCache memoryCache) =>
+app.MapPost("/api/auth/login", async (LoginRequest request, IJwtBearerService jwtBearerService, IMemoryCache memoryCache) =>
 {
     // Checks for login...
 
-    var token = jwtBearerService.CreateToken(request.UserName);
+    var token = await jwtBearerService.CreateTokenAsync(request.UserName);
     memoryCache.Remove(request.UserName);
 
     return TypedResults.Ok(new LoginResponse(token));
