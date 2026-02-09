@@ -72,7 +72,7 @@ builder.Services.AddOpenApi(options =>
     {
         AuthorizationUrl = new Uri($"{azureAdSettings.Instance}{azureAdSettings.TenantId}/oauth2/v2.0/authorize"),
         TokenUrl = new Uri($"{azureAdSettings.Instance}{azureAdSettings.TenantId}/oauth2/v2.0/token"),
-        Scopes = azureAdSettings.Scopes.ToDictionary(scope => $"api://{azureAdSettings.ClientId}/{scope}", scope => $"Access to {scope}")
+        //Scopes = azureAdSettings.Scopes.ToDictionary(scope => $"api://{azureAdSettings.ClientId}/{scope}", scope => $"Access to {scope}")
     });
 });
 
@@ -86,7 +86,7 @@ app.UseSwaggerUI(options =>
 {
     options.SwaggerEndpoint("/openapi/v1.json", builder.Environment.ApplicationName);
     options.OAuthClientId(azureAdSettings.ClientId);
-    options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
+    //options.OAuthScopes(azureAdSettings.Scopes.Select(scope => $"api://{azureAdSettings.ClientId}/{scope}").ToArray());
 });
 
 app.UseAuthentication();
