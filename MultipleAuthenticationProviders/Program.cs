@@ -1,11 +1,9 @@
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Identity.Web;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.Net.Http.Headers;
-using MultipleAuthenticationProviders.Authentication;
 using MultipleAuthenticationProviders.Models;
 using MultipleAuthenticationProviders.Settings;
 using SimpleAuthentication;
@@ -56,13 +54,44 @@ builder.Services.AddAuthentication(options =>
 //JwtSecurityTokenHandler.DefaultMapInboundClaims = false;
 //JwtSecurityTokenHandler.DefaultInboundClaimTypeMap.Add("preferred_username", ClaimTypes.Name);
 
+//builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+//{
+//    options.TokenValidationParameters.NameClaimType = "preferred_username";
+//    options.TokenValidationParameters.RoleClaimType = "roles";
+//});
+
 builder.Services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
 {
     options.TokenValidationParameters.NameClaimType = "preferred_username";
     options.TokenValidationParameters.RoleClaimType = "roles";
+
+    // Customize the token validation process for JwtBearerDefaults.AuthenticationScheme to add claims from the database after the token is validated.
+    var existingOnTokenValidated = options.Events.OnTokenValidated;
+    options.Events.OnTokenValidated = async context =>
+    {
+        await existingOnTokenValidated(context);
+
+        if (context.Principal?.Identity is not ClaimsIdentity { IsAuthenticated: true } identity)
+        {
+            return;
+        }
+
+        var memoryCache = context.HttpContext.RequestServices.GetRequiredService<IMemoryCache>();
+        var userId = context.Principal.GetObjectId()!;
+
+        var claims = await memoryCache.GetOrCreateAsync($"entra:{userId}", entry =>
+        {
+            entry.AbsoluteExpiration = context.SecurityToken.ValidTo;
+
+            // Retrieve claims from database...
+            return Task.FromResult<List<Claim>>([new(identity.RoleClaimType, "Administrator")]);
+        });
+
+        identity.AddClaims(claims!);
+    };
 });
 
-builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
+//builder.Services.AddTransient<IClaimsTransformation, ClaimsTransformer>();
 
 builder.Services.AddDefaultProblemDetails();
 builder.Services.AddDefaultExceptionHandler();

@@ -8,14 +8,14 @@ public class ClaimsTransformer(IMemoryCache memoryCache) : IClaimsTransformation
 {
     public async Task<ClaimsPrincipal> TransformAsync(ClaimsPrincipal principal)
     {
-        var identity = (ClaimsIdentity)principal.Identity;
+        var identity = principal.Identity as ClaimsIdentity;
 
-        if (identity.IsAuthenticated)
+        if (identity?.IsAuthenticated == true)
         {
-            var claims = await memoryCache.GetOrCreateAsync(identity.Name, (entry) =>
+            var claims = await memoryCache.GetOrCreateAsync(identity.Name!, (entry) =>
             {
                 // Retrieve claims from database...
-                var claimsFromDb = new List<Claim>() { new(ClaimTypes.Role, "Administrator") };
+                var claimsFromDb = new List<Claim>() { new(identity.RoleClaimType, "Administrator") };
 
                 var unixTime = Convert.ToInt64(identity.FindFirst("exp")?.Value);
                 var expirationDateTime = DateTimeOffset.FromUnixTimeSeconds(unixTime);
@@ -24,7 +24,7 @@ public class ClaimsTransformer(IMemoryCache memoryCache) : IClaimsTransformation
                 return Task.FromResult(claimsFromDb);
             });
 
-            identity.AddClaims(claims);
+            identity.AddClaims(claims!);
         }
 
         return principal;
