@@ -119,7 +119,7 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 app.UseStatusCodePages();
 
 app.MapOpenApi();
-app.UseSwaggerUI(options =>
+app.MapSwaggerUI(setupAction: options =>
 {
     options.SwaggerEndpoint("/openapi/v1.json", builder.Environment.ApplicationName);
     options.OAuthClientId(azureAdSettings!.ClientId);
